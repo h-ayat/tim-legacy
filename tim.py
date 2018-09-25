@@ -8,6 +8,9 @@ import datetime
 import re
 import shutil
 import readline
+from subprocess import call
+
+EDITOR = os.environ.get('EDITOR','vim')
 
 now = datetime.datetime.now()
 args = sys.argv
@@ -160,6 +163,10 @@ def get_tags(line, tags):
         else:
             flag = True
     return arr
+
+
+def open(path):
+     call(EDITOR.split(" ") + [path])
 #-----------------        
 
 if not os.path.exists(today_dir_path):
@@ -183,6 +190,8 @@ else:
             print(", ".join(arr))
         elif command == "end":
             insert_command("END", today)
+        elif command == "open":
+            open(today)
     elif args[1] == "-e":
         finish()
     elif args[1] == "-h":
@@ -191,6 +200,7 @@ else:
         print("-c tags : list tags")
         print("-c add : add a tag")
         print("-c end : Add end to the file")
+        print("-c open : Open today log in default system editor")
         print("-e : review and add tags to activities")
         print("-h : print this help")
     elif args[1] == "-t":
