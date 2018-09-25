@@ -89,7 +89,7 @@ def add_tag(tag):
     tags_path = tim_dir + "tags"
     touch(tags_path)
     with open(tags_path, "a") as o:
-        o.write(tag.stri())
+        o.write(tag.strip())
         o.write("\n")
 
 
@@ -170,6 +170,7 @@ touch(today)
 
 if len(args) == 1:
     cat()
+    print("\nuse -h to see options and help")
 else:
     if args[1] == "-c":
         command = args[2]
@@ -184,6 +185,14 @@ else:
             insert_command("END", today)
     elif args[1] == "-e":
         finish()
+    elif args[1] == "-h":
+        print("[MESSAGE] : start activity from this moment")
+        print("-t [MINUTES] [MESSAGE] : Start activity from [MINUTES] ago")
+        print("-c tags : list tags")
+        print("-c add : add a tag")
+        print("-c end : Add end to the file")
+        print("-e : review and add tags to activities")
+        print("-h : print this help")
     elif args[1] == "-t":
         diff = int(args[2])
         text = " ".join(args[3:])
