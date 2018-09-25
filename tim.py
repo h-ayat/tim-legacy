@@ -165,7 +165,7 @@ def get_tags(line, tags):
     return arr
 
 
-def open(path):
+def open_editor(path):
      call(EDITOR.split(" ") + [path])
 #-----------------        
 
@@ -177,6 +177,7 @@ touch(today)
 
 if len(args) == 1:
     cat()
+    print("\n-------------------------------")
     print("\nuse -h to see options and help")
 else:
     if args[1] == "-c":
@@ -191,7 +192,7 @@ else:
         elif command == "end":
             insert_command("END", today)
         elif command == "open":
-            open(today)
+            open_editor(today)
     elif args[1] == "-e":
         finish()
     elif args[1] == "-h":
