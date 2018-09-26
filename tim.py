@@ -10,37 +10,37 @@ import shutil
 import readline
 from subprocess import call
 
-EDITOR = os.environ.get('EDITOR','vim')
+EDITOR = os.environ.get('EDITOR', 'vim')
 
 now = datetime.datetime.now()
 args = sys.argv
 
 tim_dir = "{}/.config/tim/".format(os.path.expanduser("~"))
 today_dir_path = tim_dir + "{}/{}/".format(now.year, now.month)
-today = "{}{}.dat".format(today_dir_path,  now.day)
+today = "{}{}.dat".format(today_dir_path, now.day)
 
 reg = re.compile('(\d?\d:\d?\d) *<<(.+)>> *([,a-zA-Z0-1]+)?')
 
-class tabCompleter(object):
-    def createListCompleter(self,ll):
-        """ 
-        This is a closure that creates a method that autocompletes from
-        the given list.
-        
-        Since the autocomplete function can't be given a list to complete from
-        a closure is used to create the listCompleter function with a list to complete
-        from.
-        """
-        def listCompleter(text,state):
-            line   = readline.get_line_buffer()
 
-            if not line:
-                return [c + " " for c in ll][state]
-            else:
-                return [c + " " for c in ll if c.startswith(line)][state]
-    
-        self.listCompleter = listCompleter
+def create_list_completer(ll):
+    """
+    This is a closure that creates a method that autocompletes from
+    the given list.
 
+    Since the autocomplete function can't be given a list to complete from
+    a closure is used to create the listCompleter function with a list to complete
+    from.
+    """
+
+    def list_completer(text, state):
+        line = readline.get_line_buffer()
+
+        if not line:
+            return [c + " " for c in ll][state]
+        else:
+            return [c + " " for c in ll if c.startswith(line)][state]
+
+    return list_completer
 
 
 # -------helpers
@@ -48,6 +48,7 @@ def touch(path):
     if not os.path.exists(path):
         with open(path, 'a'):
             os.utime(path, None)
+
 
 def cat():
     path = today
@@ -57,13 +58,13 @@ def cat():
     f = open(path, "r")
     for l in f.readlines():
         parts = reg.match(l.strip())
-        if parts != None:
+        if parts is not None:
             tags = ''
             if len(parts.groups()) == 3 and parts.group(3):
                 tags = parts.group(3)
             print('{}  {}   [{}]'.format(parts.group(1), parts.group(2), tags))
-
     f.close()
+
 
 def insert(text, path, minus):
     t = datetime.datetime.now() - datetime.timedelta(minutes=minus)
@@ -71,22 +72,24 @@ def insert(text, path, minus):
     with open(path, "a") as o:
         o.write(msg)
 
+
 def insert_command(text, path):
     t = datetime.datetime.now()
     msg = "{}:{} {}\n".format(t.hour, t.minute, text)
     with open(path, "a") as o:
-        o.write(msg)        
+        o.write(msg)
+
 
 def load_tags():
-    arr = []
     tags_path = tim_dir + "tags"
     touch(tags_path)
-    with open(tags_path, "r") as f:
-        arr = f.readlines()
     res = []
-    for a in arr:
-        res.append(a.strip())
+    with open(tags_path, "r") as f:
+        all_tags = f.readlines()
+        for a in all_tags:
+            res.append(a.strip())
     return res
+
 
 def add_tag(tag):
     tags_path = tim_dir + "tags"
@@ -109,7 +112,7 @@ def finish():
     output = []
     for l in lines:
         parts = reg.match(l.strip())
-        if parts == None:
+        if parts is None:
             output.append(l)
         else:
             current_tags = ''
@@ -117,7 +120,7 @@ def finish():
                 current_tags = str(parts.group(3))
             print("\n")
             text = '{}  {}   [{}]'.format(parts.group(1), parts.group(2), current_tags)
-            tags = get_tags(text, loaded_tags) 
+            tags = get_tags(text, loaded_tags)
             ok_tags = set()
             all_tags = load_tags()
             for tag in tags:
@@ -129,7 +132,7 @@ def finish():
             output.append(current_line)
             print("------------")
 
-    os.system('cls' if os.name == 'nt' else 'clear')        
+    os.system('cls' if os.name == 'nt' else 'clear')
     print("\n".join(output))
     result = input("Save ? (Y/n)")
     if result == "y" or result == "Y" or result == "":
@@ -138,42 +141,41 @@ def finish():
         f.close()
 
 
-
-def get_tags(line, tags):
-    t = tabCompleter()
-    t.createListCompleter(tags)
+def get_tags(line, defined_tags):
+    tab_completer = create_list_completer(defined_tags)
     readline.set_completer_delims('\t')
     readline.parse_and_bind("tab: complete")
-    readline.set_completer(t.listCompleter)
-    arr = set()
+    readline.set_completer(tab_completer)
+    new_tags = set()
     ans = 'a'
     flag = False
     while ans.strip() != '':
         os.system('cls' if os.name == 'nt' else 'clear')
-        print("Available tags : " + ", ".join(tags))
+        print("Available tags : " + ", ".join(defined_tags))
         print("---------")
-        print(line + " " + ", ".join(arr))
+        print(line + " " + ", ".join(new_tags))
 
         if flag:
             print("{} is not a valid tag".format(ans))
         ans = input().strip()
-        if ans in tags:
-            arr.add(ans)
+        if ans in defined_tags:
+            new_tags.add(ans)
             flag = False
         else:
             flag = True
-    return arr
+    return new_tags
 
 
 def open_editor(path):
-     call(EDITOR.split(" ") + [path])
-#-----------------        
+    call(EDITOR.split(" ") + [path])
+
+
+# -----------------
 
 if not os.path.exists(today_dir_path):
     os.makedirs(today_dir_path)
 
 touch(today)
-
 
 if len(args) == 1:
     cat()
@@ -206,12 +208,9 @@ else:
         print("-h : print this help")
     elif args[1] == "-t":
         diff = int(args[2])
-        text = " ".join(args[3:])
-        insert(text, today, diff)
+        message = " ".join(args[3:])
+        insert(message, today, diff)
 
     else:
-        text = " ".join(args[1:])
-        insert(text, today, 0)
-
-    
-
+        message = " ".join(args[1:])
+        insert(message, today, 0)
