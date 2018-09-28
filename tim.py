@@ -98,6 +98,11 @@ def create_list_completer(ll):
 
 
 # -------helpers
+
+def days_ago(days: int) -> datetime:
+    return now - datetime.timedelta(days=days)
+
+
 def touch(path):
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -191,15 +196,17 @@ def save_file(samples: [Sample], path: str):
 
 def load_file(path) -> [Sample]:
     arr = []
-    with open(path, 'r') as f:
-        for line in f.readlines():
-            sample = Sample.from_json(line)
-            arr.append(sample)
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            for line in f.readlines():
+                sample = Sample.from_json(line)
+                arr.append(sample)
     return arr
 
 
 def cat(date: datetime):
     path = create_path(date.year, date.month, date.day)
+    print("{}/{}/{} Logs:".format(date.year, date.month, date.day))
     print("use -h to show help and commands")
     print("-----------------------------------\n")
     arr = load_file(path)
@@ -219,7 +226,9 @@ def print_help():
     print("-c add : add a tag")
     print("-c end : Add end to the file")
     print("-c open : Open today log in default system editor")
-    print("-e : review and add tags to activities")
+    print("-c cat [days_ago] : Print data file, default : today(0)")
+    print("-c rev [days_age] : Print data file and manage tags, default : today(0)")
+    print("-e : review and add tags to activities. It is equal to '-c rev 0'")
     print("-h : print this help")
 
 
@@ -241,6 +250,16 @@ def run():
                 insert_command("END", today_path)
             elif command == "open":
                 open_editor(today_path)
+            elif command == 'cat':
+                days = 0
+                if len(args) == 4:
+                    days = int(args[3])
+                elif len(args) > 4:
+                    print('Expected one numerical argument')
+                    return
+                cat(days_ago(days))
+
+
         elif args[1] == "-e":
             finish(now)
         elif args[1] == "-h":
