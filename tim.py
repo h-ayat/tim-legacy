@@ -145,11 +145,11 @@ def add_tag(tag):
         o.write("\n")
 
 
-def finish(date: datetime):
+def review(date: datetime):
     path = date_to_path(date)
     touch(path)
     shutil.copyfile(today_path, today_path + "_back")
-    samples = load_file(today_path)
+    samples = load_file(path)
     loaded_tags = load_tags()
 
     for sample in samples:
@@ -228,7 +228,7 @@ def print_help():
     print("-c open : Open today log in default system editor")
     print("-c cat [days_ago] : Print data file, default : today(0)")
     print("-c rev [days_age] : Print data file and manage tags, default : today(0)")
-    print("-e : review and add tags to activities. It is equal to '-c rev 0'")
+    print("-r : review and add tags to activities. It is equal to '-c rev 0'")
     print("-h : print this help")
 
 
@@ -259,9 +259,17 @@ def run():
                     return
                 cat(days_ago(days))
 
+            elif command == 'rev':
+                days = 0
+                if len(args) == 4:
+                    days = int(args[3])
+                elif len(args) > 4:
+                    print('Expected one numerical argument')
+                    return
+                review(days_ago(days))
 
-        elif args[1] == "-e":
-            finish(now)
+        elif args[1] == "-r":
+            review(now)
         elif args[1] == "-h":
             print_help()
         elif args[1] == "-t":
