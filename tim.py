@@ -17,9 +17,12 @@ EDITOR = os.environ.get('EDITOR', 'vim')
 
 # ----
 
-
 def create_path(year, month, day) -> str:
     return tim_dir + '{}/{}/{}.dat'.format(year, month, day)
+
+
+def date_to_path(date: datetime) -> str:
+    return create_path(date.year, date.month, date.day)
 
 
 now: datetime = datetime.datetime.now()
@@ -75,7 +78,7 @@ class Sample(object):
 
 def create_list_completer(ll):
     """
-    This is a closure that creates a method that autocompletes from
+    This is a closure that creates a method that auto-completes from
     the given list.
 
     Since the autocomplete function can't be given a list to complete from
@@ -108,6 +111,7 @@ def insert(text, path, minus):
     sample = Sample('{}:{}'.format(t.hour, t.minute), text)
     with open(path, "a") as o:
         o.write(sample.to_json())
+        o.write("\n")
 
 
 def insert_command(text, path):
@@ -136,78 +140,56 @@ def add_tag(tag):
         o.write("\n")
 
 
-def finish():
-    touch(today_path)
+def finish(date: datetime):
+    path = date_to_path(date)
+    touch(path)
     shutil.copyfile(today_path, today_path + "_back")
-    lines = []
-    with open(today_path, "r") as o:
-        for l in o.readlines():
-            lines.append(l.strip())
-    print(lines)
+    samples = load_file(today_path)
     loaded_tags = load_tags()
 
-    output = []
-    for l in lines:
-        parts = reg.match(l.strip())
-        if parts is None:
-            output.append(l)
-        else:
-            current_tags = ''
-            if len(parts.groups()) == 3 and parts.group(3):
-                current_tags = str(parts.group(3))
-            print("\n")
-            text = '{}  {}   [{}]'.format(parts.group(1), parts.group(2), current_tags)
-            tags = get_tags(text, loaded_tags)
-            ok_tags = set()
-            all_tags = load_tags()
-            for tag in tags:
-                if tag not in all_tags:
-                    print("{} is not registered, skipping".format(tag))
-                else:
-                    ok_tags.add(tag)
-            current_line = parts.group(1) + " <<" + parts.group(2) + ">> " + ",".join(list(ok_tags))
-            output.append(current_line)
-            print("------------")
+    for sample in samples:
+        if sample.message is not None:
+            get_tag(sample, loaded_tags)
 
     os.system('cls' if os.name == 'nt' else 'clear')
-    print("\n".join(output))
+    for sample in samples:
+        print(sample)
     result = input("Save ? (Y/n)")
     if result == "y" or result == "Y" or result == "":
-        f = open(today_path, "w")
-        f.write("\n".join(output) + "\n")
-        f.close()
+        save_file(samples, path)
 
 
-def get_tags(line, defined_tags):
+def get_tag(sample: Sample, defined_tags: [str]):
     tab_completer = create_list_completer(defined_tags)
     readline.set_completer_delims('\t')
     readline.parse_and_bind("tab: complete")
     readline.set_completer(tab_completer)
-    new_tags = set()
-    ans = 'a'
-    flag = False
-    while ans.strip() != '':
+
+    flag = True
+    tag = ''
+    while flag:
         os.system('cls' if os.name == 'nt' else 'clear')
         print("Available tags : " + ", ".join(defined_tags))
         print("---------")
-        print(line + " " + ", ".join(new_tags))
-
-        if flag:
-            print("{} is not a valid tag".format(ans))
-        ans = input().strip()
-        if ans in defined_tags:
-            new_tags.add(ans)
+        print(sample)
+        if tag != '':
+            print("{} is not a valid tag".format(tag))
+        tag = input().strip()
+        if tag in defined_tags:
+            sample.tag = tag
             flag = False
-        else:
-            flag = True
-    return new_tags
 
 
 def open_editor(path):
     call(EDITOR.split(" ") + [path])
 
 
-def load_file(path) -> list[Sample]:
+def save_file(samples: [Sample], path: str):
+    with open(path, 'w') as f:
+        f.write("\n".join(map(lambda x: x.to_json(), samples)))
+
+
+def load_file(path) -> [Sample]:
     arr = []
     with open(path, 'r') as f:
         for line in f.readlines():
@@ -260,7 +242,7 @@ def run():
             elif command == "open":
                 open_editor(today_path)
         elif args[1] == "-e":
-            finish()
+            finish(now)
         elif args[1] == "-h":
             print_help()
         elif args[1] == "-t":
