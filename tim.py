@@ -30,6 +30,12 @@ args = sys.argv
 today_path = create_path(now.year, now.month, now.day)
 
 
+class Summary(object):
+    def __init__(self, tag_tuples: [(str, int)], issue_tuples: [(str, int)]):
+        self.tag_tuples = tag_tuples
+        self.issue_tuples = issue_tuples
+
+
 class Sample(object):
     """Base sample data class, a sample contains either a message (normal event with/out a tag) or a special command,
     like end """
@@ -119,11 +125,11 @@ def insert(text, path, minus):
         o.write("\n")
 
 
-def insert_command(text, path):
-    t = datetime.datetime.now()
-    msg = "{}:{} {}\n".format(t.hour, t.minute, text)
+def insert_command(command, path, date):
+    sample = Sample('{}:{}'.format(date.hour, date.minute), None, None, command)
     with open(path, "a") as o:
-        o.write(msg)
+        o.write(sample.to_json())
+        o.write("\n")
 
 
 def load_tags():
@@ -183,6 +189,8 @@ def get_tag(sample: Sample, defined_tags: [str]):
         if tag in defined_tags:
             sample.tag = tag
             flag = False
+        elif tag == '':
+            flag = False
 
 
 def open_editor(path):
@@ -192,6 +200,7 @@ def open_editor(path):
 def save_file(samples: [Sample], path: str):
     with open(path, 'w') as f:
         f.write("\n".join(map(lambda x: x.to_json(), samples)))
+        f.write("\n")
 
 
 def load_file(path) -> [Sample]:
@@ -247,7 +256,7 @@ def run():
                 arr = load_tags()
                 print(", ".join(arr))
             elif command == "end":
-                insert_command("END", today_path)
+                insert_command("END", today_path, datetime.datetime.now())
             elif command == "open":
                 open_editor(today_path)
             elif command == 'cat':
