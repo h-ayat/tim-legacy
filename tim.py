@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 
 from __future__ import annotations
 import os
@@ -7,6 +7,7 @@ import datetime
 import shutil
 import readline
 import json
+import re
 from subprocess import call
 
 # ------ Configurations
@@ -41,10 +42,10 @@ class Sample(object):
     like end """
 
     def __init__(self, time: str, message: str = None, tag: str = None, command: str = None):
-        self.time = time
-        self.message = message
-        self.tag = tag
-        self.command = command
+        self.time: str = time
+        self.message: str = message
+        self.tag: str = tag
+        self.command: str = command
         if message is None and command is None:
             raise RuntimeError("message and command cannot be empty at the same time")
         if message is not None and command is not None:
@@ -125,8 +126,8 @@ def insert(text, path, minus):
         o.write("\n")
 
 
-def insert_command(command, path, date):
-    sample = Sample('{}:{}'.format(date.hour, date.minute), None, None, command)
+def insert_command(command: str, path: str, time: str):
+    sample = Sample(time, None, None, command)
     with open(path, "a") as o:
         o.write(sample.to_json())
         o.write("\n")
@@ -151,6 +152,43 @@ def add_tag(tag):
         o.write("\n")
 
 
+def validate_end_time(given: str, last: str) -> bool:
+    if re.match(r'^[0-9]+:[0-9]+$', given):
+        [hs, ms] = given.split(':')
+        (h, m) = (int(hs), int(ms))
+        if h < 24 and m < 60:
+            if last is None:
+                return True
+            else:
+                [hhs, mms] = last.split(':')
+                (hh, mm) = (int(hhs), int(mms))
+                return h > hh or (h == hh and m >= mm)
+
+    return False
+
+
+def get_yes_no(message: str, default_flag: bool = True) -> bool:
+    complete_message = message + ('(Y/n)' if default_flag else '(y/N)')
+    while True:
+        result = input(complete_message).lower()
+        if result == '':
+            return default_flag
+        elif result == 'y' or result == 'yes':
+            return True
+        elif result == 'n' or result == 'no':
+            return False
+        else:
+            print('Please enter y or n (empty is treated as default value)')
+
+
+def get_end_hour(last: str = None) -> str:
+    message = 'Enter end hour' + ('(last Time stamp : {}) :'.format(last) if last is not None else ':')
+    while True:
+        result = input(message)
+        if validate_end_time(result, last):
+            return result
+
+
 def review(date: datetime):
     path = date_to_path(date)
     touch(path)
@@ -165,8 +203,15 @@ def review(date: datetime):
     os.system('cls' if os.name == 'nt' else 'clear')
     for sample in samples:
         print(sample)
-    result = input("Save ? (Y/n)")
-    if result == "y" or result == "Y" or result == "":
+
+    if len(samples) != 0 and samples[-1].command is None:
+        if get_yes_no('This timesheet is not ended, would you like to End?'):
+            end_time = get_end_hour(samples[-1].time)
+            sample = Sample(end_time, None, None, 'end')
+            samples.append(sample)
+
+    if get_yes_no('Save?'):
+        print('saving')
         save_file(samples, path)
 
 
@@ -256,7 +301,7 @@ def run():
                 arr = load_tags()
                 print(", ".join(arr))
             elif command == "end":
-                insert_command("END", today_path, datetime.datetime.now())
+                insert_command("END", today_path, now.hour + ':' + now.minute)
             elif command == "open":
                 open_editor(today_path)
             elif command == 'cat':
