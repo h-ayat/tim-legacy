@@ -301,7 +301,7 @@ def run():
                 arr = load_tags()
                 print(", ".join(arr))
             elif command == "end":
-                insert_command("END", today_path, now.hour + ':' + now.minute)
+                insert_command("END", today_path, str(now.hour) + ':' + str(now.minute))
             elif command == "open":
                 open_editor(today_path)
             elif command == 'cat':
