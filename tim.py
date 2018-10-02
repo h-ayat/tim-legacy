@@ -297,9 +297,12 @@ def run():
                 arr = load_tags()
                 print(", ".join(arr))
             elif command == "add":
-                add_tag(args[3])
-                arr = load_tags()
-                print(", ".join(arr))
+                if len(args) == 4:
+                    add_tag(args[3])
+                    arr = load_tags()
+                    print(", ".join(arr))
+                else:
+                    print("Expected One argument after add")
             elif command == "end":
                 insert_command("END", today_path, str(now.hour) + ':' + str(now.minute))
             elif command == "open":
