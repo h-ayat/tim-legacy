@@ -64,7 +64,8 @@ class Sample(object):
         if self.command is not None:
             return '{}  {}'.format(self.time, self.command)
         else:
-            return '{}  {} [{}]'.format(self.time, self.message, self.tag)
+            t = '' if self.tag is None else self.tag
+            return '{:>5s}  [{:^13s}]    {}'.format(self.time, t, self.message)
 
     @staticmethod
     def from_json(json_text) -> Sample:
@@ -118,9 +119,13 @@ def touch(path):
             os.utime(path, None)
 
 
-def insert(text, path, minus):
+def insert(text: str, path: str, minus: int, tag=None):
     t = datetime.datetime.now() - datetime.timedelta(minutes=minus)
-    sample = Sample('{}:{}'.format(t.hour, t.minute), text)
+    sample = Sample('{}:{}'.format(t.hour, t.minute), text, tag)
+    insert_sample(sample, path)
+
+
+def insert_sample(sample: Sample, path: str):
     with open(path, "a") as o:
         o.write(sample.to_json())
         o.write("\n")
@@ -276,6 +281,8 @@ touch(today_path)
 def print_help():
     print("[MESSAGE] : start activity from this moment")
     print("-t [MINUTES] [MESSAGE] : Start activity from [MINUTES] ago")
+    print("-tt [MINUTES] [MESSAGE] : Start and finish given activity from [MINUTES] ago, then continue the last "
+          "activity.")
     print("-c tags : list tags")
     print("-c add : add a tag")
     print("-c end : Add end to the file")
@@ -333,6 +340,18 @@ def run():
             diff = int(args[2])
             message = " ".join(args[3:])
             insert(message, today_path, diff)
+
+        elif args[1] == "-tt":
+            if len(args) < 4:
+                print("Invalid args: t -tt MINUTES MESSAGE")
+                return
+            diff = int(args[2])
+            message = " ".join(args[3:])
+            samples = load_file(today_path)
+            insert(message, today_path, diff)
+            if len(samples) > 0:
+                target = samples[-1]
+                insert(target.message, today_path, 0, target.tag)
 
         else:
             message = " ".join(args[1:])
