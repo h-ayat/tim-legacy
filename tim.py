@@ -194,16 +194,20 @@ def get_end_hour(last: str = None) -> str:
             return result
 
 
-def review(date: datetime):
+def review(date: datetime, skip_tagged: bool = True):
+    print("{}/{}/{} Logs:".format(date.year, date.month, date.day))
     path = date_to_path(date)
     touch(path)
     shutil.copyfile(today_path, today_path + "_back")
     samples = load_file(path)
     loaded_tags = load_tags()
-
+    changed = False
     for sample in samples:
-        if sample.message is not None:
+        if sample.message is not None and (not (skip_tagged and sample.tag is not None)):
+            prev = sample.tag
             get_tag(sample, loaded_tags)
+            if prev != sample.tag:
+                changed = True
 
     os.system('cls' if os.name == 'nt' else 'clear')
     for sample in samples:
@@ -214,8 +218,9 @@ def review(date: datetime):
             end_time = get_end_hour(samples[-1].time)
             sample = Sample(end_time, None, None, 'end')
             samples.append(sample)
+            changed = True
 
-    if get_yes_no('Save?'):
+    if changed and get_yes_no('Save?'):
         print('saving')
         save_file(samples, path)
 
@@ -258,8 +263,9 @@ def load_file(path) -> [Sample]:
     if os.path.exists(path):
         with open(path, 'r') as f:
             for line in f.readlines():
-                sample = Sample.from_json(line)
-                arr.append(sample)
+                if line.strip() != '':
+                    sample = Sample.from_json(line.strip())
+                    arr.append(sample)
     return arr
 
 
@@ -289,8 +295,108 @@ def print_help():
     print("-c open : Open today log in default system editor")
     print("-c cat [days_ago] : Print data file, default : today(0)")
     print("-c rev [days_age] : Print data file and manage tags, default : today(0)")
+    print("-c sum [START] [END] : Summarize events from [START] days ago until [END] days ago, inclusive.")
     print("-r : review and add tags to activities. It is equal to '-c rev 0'")
     print("-h : print this help")
+
+
+def load_and_clean_all(first: int, last: int) -> [[Sample]]:
+    arr = []
+    for x in range(first, last + 1):
+        date = days_ago(x)
+        path = date_to_path(date)
+        review(date, True)
+        this_day = load_file(path)
+        if len(this_day) > 0:
+            arr.append(this_day)
+    return arr
+
+
+def diff(start: Sample, end: Sample) -> int:
+    return diff_times(start.time, end.time)
+
+
+def diff_times(start: str, end: str) -> int:
+    (shs, sms) = start.split(':')
+    (sh, sm) = (int(shs), int(sms))
+
+    (ehs, ems) = end.split(':')
+    (eh, em) = (int(ehs), int(ems))
+
+    return (em - sm) + 60 * (eh - sh)
+
+
+def add_dict(dic, key, value):
+    if key in dic:
+        dic[key] += value
+    else:
+        dic[key] = value
+
+
+def summarize(start: int, end: int):
+    data = load_and_clean_all(start, end)
+    day_length = []
+    tag_length = {}
+    tag_count = {}
+    issue_sum = {}
+
+    for day in data:
+        prev = None
+
+        buffer = 0
+
+        le = diff(day[0], day[-1])
+        day_length.append(le)
+        for sample in day:
+            if prev is None:
+                prev = sample
+                continue
+
+            tag = prev.tag
+            d = diff(prev, sample)
+            if prev.message.startswith("#"):
+                add_dict(issue_sum, prev.message, d)
+
+            if buffer != 0:
+                buffer += d
+                if sample.tag != tag:
+                    add_dict(tag_count, tag, 1)
+                    add_dict(tag_length, tag, buffer)
+                    buffer = 0
+            else:
+                if tag == sample.tag:
+                    buffer = d
+                else:
+                    add_dict(tag_count, tag, 1)
+                    add_dict(tag_length, tag, d)
+            prev = sample
+
+    def avg(arr):
+        return sum(arr) / len(arr)
+
+    def per(total: int, n: int) -> float:
+        return int(n * 1000 / total) / 10
+
+    print(tag_length)
+    print(issue_sum)
+
+    total_hours = 0
+    for tag in tag_length:
+        total_hours += tag_length[tag]
+    print("\n-------------------------\n")
+    print("Daily AVG: {}".format(avg(day_length) / 60))
+    print()
+    print("Distribution:")
+    for tag in tag_length:
+        print('{}: {}%  AVG:{}'.format(tag, per(total_hours, tag_length[tag]), tag_length[tag] / tag_count[tag]))
+    print()
+    print("Issues:")
+    for issue in issue_sum:
+        print("{} :  {}".format(issue, issue_sum[issue]))
+    print()
+    print("Daily cuts:")
+    for tag in tag_count:
+        print('{}:  {}'.format(tag, tag_count[tag] / len(data)))
 
 
 def run():
@@ -300,6 +406,7 @@ def run():
     else:
         if args[1] == "-c":
             command = args[2]
+
             if command == 'tags':
                 arr = load_tags()
                 print(", ".join(arr))
@@ -332,14 +439,30 @@ def run():
                     return
                 review(days_ago(days))
 
+            elif command == "sum":
+                if len(args) == 4:
+                    start = 0
+                    end = int(args[3])
+                    summarize(start, end)
+                elif len(args) == 5:
+                    start = int(args[3])
+                    end = int(args[4])
+                    summarize(start, end)
+                else:
+                    print('Expected one numerical argument')
+
         elif args[1] == "-r":
-            review(now)
+            days = 0
+            if len(args) == 3:
+                days = int(args[2])
+            date = days_ago(days)
+            review(date)
         elif args[1] == "-h":
             print_help()
         elif args[1] == "-t":
-            diff = int(args[2])
+            d = int(args[2])
             message = " ".join(args[3:])
-            insert(message, today_path, diff)
+            insert(message, today_path, d)
 
         elif args[1] == "-tt":
             if len(args) < 4:
