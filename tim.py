@@ -31,10 +31,11 @@ args = sys.argv
 today_path = create_path(now.year, now.month, now.day)
 
 
-class Summary(object):
-    def __init__(self, tag_tuples: [(str, int)], issue_tuples: [(str, int)]):
-        self.tag_tuples = tag_tuples
-        self.issue_tuples = issue_tuples
+def clean_time(time: str) -> str:
+    (h, m) = time.split(':')
+    h = ('0' + h) if len(h) == 1 else h
+    m = ('0' + m) if len(m) == 1 else m
+    return '{}:{}'.format(h, m)
 
 
 class Sample(object):
@@ -42,7 +43,7 @@ class Sample(object):
     like end """
 
     def __init__(self, time: str, message: str = None, tag: str = None, command: str = None):
-        self.time: str = time
+        self.time: str = clean_time(time)
         self.message: str = message
         self.tag: str = tag
         self.command: str = command
@@ -275,6 +276,7 @@ def cat(date: datetime):
     print("use -h to show help and commands")
     print("-----------------------------------\n")
     arr = load_file(path)
+    prev = None
     for sample in arr:
         print(sample)
 
@@ -292,7 +294,7 @@ def print_help():
     print("-c tags : list tags")
     print("-c add : add a tag")
     print("-c end : Add end to the file")
-    print("-c open : Open today log in default system editor")
+    print("-c open [days_ago]: Open today log in default system editor")
     print("-c cat [days_ago] : Print data file, default : today(0)")
     print("-c rev [days_age] : Print data file and manage tags, default : today(0)")
     print("-c sum [START] [END] : Summarize events from [START] days ago until [END] days ago, inclusive.")
@@ -420,7 +422,15 @@ def run():
             elif command == "end":
                 insert_command("END", today_path, str(now.hour) + ':' + str(now.minute))
             elif command == "open":
-                open_editor(today_path)
+                days = 0
+                if len(args) == 4:
+                    days = int(args[3])
+                elif len(args) > 4:
+                    print('Expected one numerical argument')
+                    return
+                date = days_ago(days)
+                path = date_to_path(date)
+                open_editor(path)
             elif command == 'cat':
                 days = 0
                 if len(args) == 4:
