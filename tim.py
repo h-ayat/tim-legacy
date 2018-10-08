@@ -217,7 +217,7 @@ def review(date: datetime, skip_tagged: bool = True):
     if len(samples) != 0 and samples[-1].command is None:
         if get_yes_no('This timesheet is not ended, would you like to End?'):
             end_time = get_end_hour(samples[-1].time)
-            sample = Sample(end_time, None, None, 'end')
+            sample = Sample(end_time, None, None, 'END')
             samples.append(sample)
             changed = True
 
@@ -374,7 +374,10 @@ def summarize(start: int, end: int):
             prev = sample
 
     def avg(arr):
-        return sum(arr) / len(arr)
+        if len(arr) == 0:
+            return 0
+        else:
+            return sum(arr) / len(arr)
 
     def per(total: int, n: int) -> float:
         return int(n * 1000 / total) / 10
