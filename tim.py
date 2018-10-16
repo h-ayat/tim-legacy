@@ -3,17 +3,25 @@
 from __future__ import annotations
 import os
 import sys
-import datetime
 import shutil
 import readline
 import json
 import re
 from subprocess import call
+import requests
+import json
+from datetime import timedelta
+from datetime import datetime
+from dateutil.tz import tzlocal
+
+tzname = datetime.now(tzlocal()).tzname()
 
 # ------ Configurations
 tim_dir = "{}/.config/tim/".format(os.path.expanduser("~"))
 ver = "0.1.0"
 EDITOR = os.environ.get('EDITOR', 'vim')
+
+jira_config = {}
 
 
 # ----
@@ -26,7 +34,7 @@ def date_to_path(date: datetime) -> str:
     return create_path(date.year, date.month, date.day)
 
 
-now: datetime = datetime.datetime.now()
+now: datetime = datetime.now()
 args = sys.argv
 today_path = create_path(now.year, now.month, now.day)
 
@@ -42,11 +50,14 @@ class Sample(object):
     """Base sample data class, a sample contains either a message (normal event with/out a tag) or a special command,
     like end """
 
-    def __init__(self, time: str, message: str = None, tag: str = None, command: str = None):
+    def __init__(self, time: str, message: str = None, tag: str = None, command: str = None, jira_sync: bool = False,
+                 jira_skip=False):
         self.time: str = clean_time(time)
         self.message: str = message
         self.tag: str = tag
         self.command: str = command
+        self.jira_sync = jira_sync
+        self.jira_skip = jira_skip
         if message is None and command is None:
             raise RuntimeError("message and command cannot be empty at the same time")
         if message is not None and command is not None:
@@ -74,6 +85,8 @@ class Sample(object):
         message = None
         tag = None
         command = None
+        jira_sync = False
+        jira_skip = False
 
         time = js_obj['time']
         if 'tag' in js_obj:
@@ -82,7 +95,11 @@ class Sample(object):
             command = js_obj['command']
         if 'message' in js_obj:
             message = js_obj['message']
-        return Sample(time, message, tag, command)
+        if 'jira_sync' in js_obj:
+            jira_sync = js_obj['jira_sync']
+        if 'jira_skip' in js_obj:
+            jira_skip = js_obj['jira_skip']
+        return Sample(time, message, tag, command, jira_sync, jira_skip)
 
 
 def create_list_completer(ll):
@@ -109,7 +126,7 @@ def create_list_completer(ll):
 # -------helpers
 
 def days_ago(days: int) -> datetime:
-    return now - datetime.timedelta(days=days)
+    return now - timedelta(days=days)
 
 
 def touch(path):
@@ -121,7 +138,7 @@ def touch(path):
 
 
 def insert(text: str, path: str, minus: int, tag=None):
-    t = datetime.datetime.now() - datetime.timedelta(minutes=minus)
+    t = datetime.now() - timedelta(minutes=minus)
     sample = Sample('{}:{}'.format(t.hour, t.minute), text, tag)
     insert_sample(sample, path)
 
@@ -276,7 +293,6 @@ def cat(date: datetime):
     print("use -h to show help and commands")
     print("-----------------------------------\n")
     arr = load_file(path)
-    prev = None
     for sample in arr:
         print(sample)
 
@@ -404,12 +420,122 @@ def summarize(start: int, end: int):
         print('{}:  {}'.format(tag, tag_count[tag] / len(data)))
 
 
+def jira_base_url(hostname) -> str:
+    return 'https://{}/rest/'.format(hostname)
+
+
+def test_jira_connection(hostname, username, password) -> bool:
+    r1 = requests.post(jira_base_url(hostname) + 'auth/1/session', json={'username': username, 'password': password})
+    jira_config['jar'] = r1.cookies
+    r2 = requests.get(jira_base_url(hostname) + 'auth/1/session', cookies=jira_config['jar'])
+    print(str(r1.status_code), str(r2.status_code))
+    return r2.status_code == 200
+
+
+def jira_connect() -> bool:
+    path = tim_dir + "jira"
+    input_flag = False
+    if not os.path.exists(path):
+        hostname = input('Please enter Jira hostname\n')
+        username = input('Please enter Jira username\n')
+        password = input('Please enter Jira password\n')
+        prefix = input('Please enter Jira prefix\n')
+        input_flag = True
+    else:
+        with open(path, "r") as f:
+            hostname = f.readline().strip()
+            username = f.readline().strip()
+            password = f.readline().strip()
+            prefix = f.readline().strip()
+
+    while not test_jira_connection(hostname, username, password):
+        if get_yes_no("Jira connection test failed, Retry?"):
+            hostname = input('Please enter Jira hostname\n')
+            username = input('Please enter Jira username\n')
+            password = input('Please enter Jira password\n')
+            prefix = input('Please enter Jira prefix\n')
+            input_flag = True
+        else:
+            return False
+
+    print("Jira connection test -> Successful.")
+    if input_flag and get_yes_no("Do you want to save Jira credentials ? (SECURITY WARNING: It would be saved in a "
+                                 "plain text file in your system"):
+        touch(path)
+        with open(path, "w") as f:
+            f.write(hostname + "\n")
+            f.write(username + "\n")
+            f.write(password + "\n")
+            f.write(prefix)
+
+    jira_config['prefix'] = prefix
+    jira_config['host'] = hostname
+    return True
+
+
+def sync_jira(day: int):
+    if not jira_connect():
+        return
+    date = days_ago(day)
+    path = date_to_path(date)
+    data = load_file(path)
+    change_flag = False
+    sample = None
+    for other in data:
+        if sample is not None:
+            if sample.message.startswith('#') and not sample.jira_sync and not sample.jira_skip:
+                change_flag = True
+                sync_jira_sample(date, sample, other)
+        sample = other
+
+    if change_flag:
+        save_file(data, path)
+
+
+def sync_jira_sample(file_date: datetime, sample: Sample, other: Sample):
+    print("Syncing:")
+    print(sample)
+    if get_yes_no("Do you want to sync this task with jira?"):
+
+        key = sample.message.split(" ")[0].replace('#', '')
+        if "-" not in key:
+            key = jira_config['prefix'] + '-' + key
+
+        d = diff(sample, other)
+        start_datetime = file_date.replace(hour=sample.hour(), minute=sample.minute()).strftime(
+            '%Y-%m-%dT%H:%M:%S.000') + tzname
+        message = {
+            'comment': sample.message,
+            'timeSpentSeconds': (d * 60),
+            'started': start_datetime
+        }
+
+        url = jira_base_url(jira_config['host']) + 'api/2/issue/{}/worklog'.format(key)
+        result = requests.post(url, json=message, cookies=jira_config['jar'])
+        if result.status_code == 201:
+            sample.jira_sync = True
+        else:
+            print('WARNING: Could not sync ' + key)
+    else:
+        sample.jira_skip = True
+
+
 def run():
     if len(args) == 1:
         cat(now)
         print("")
     else:
-        if args[1] == "-c":
+        if args[1] == '-j' or args[1] == '--jira':
+            start = 0
+            if len(args) == 2:
+                start = 0
+            elif len(args) == 3:
+                start = int(args[2])
+            else:
+                print('Expected one numerical argument')
+
+            sync_jira(start)
+        elif args[1] == "-c":
             command = args[2]
 
             if command == 'tags':
@@ -481,10 +607,10 @@ def run():
             if len(args) < 4:
                 print("Invalid args: t -tt MINUTES MESSAGE")
                 return
-            diff = int(args[2])
+            time_diff = int(args[2])
             message = " ".join(args[3:])
             samples = load_file(today_path)
-            insert(message, today_path, diff)
+            insert(message, today_path, time_diff)
             if len(samples) > 0:
                 target = samples[-1]
                 insert(target.message, today_path, 0, target.tag)
