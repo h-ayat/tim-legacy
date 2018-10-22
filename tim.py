@@ -26,6 +26,10 @@ jira_config = {}
 
 # ----
 
+def clean_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+
 def create_path(year, month, day) -> str:
     return tim_dir + '{}/{}/{}.dat'.format(year, month, day)
 
@@ -213,6 +217,7 @@ def get_end_hour(last: str = None) -> str:
 
 
 def review(date: datetime, skip_tagged: bool = True):
+    clean_screen()
     print("{}/{}/{} Logs:".format(date.year, date.month, date.day))
     path = date_to_path(date)
     touch(path)
@@ -227,7 +232,6 @@ def review(date: datetime, skip_tagged: bool = True):
             if prev != sample.tag:
                 changed = True
 
-    os.system('cls' if os.name == 'nt' else 'clear')
     for sample in samples:
         print(sample)
 
@@ -252,7 +256,7 @@ def get_tag(sample: Sample, defined_tags: [str]):
     flag = True
     tag = ''
     while flag:
-        os.system('cls' if os.name == 'nt' else 'clear')
+        clean_screen()
         print("Available tags : " + ", ".join(defined_tags))
         print("---------")
         print(sample)
@@ -300,22 +304,6 @@ def cat(date: datetime):
 # -----------------
 
 touch(today_path)
-
-
-def print_help():
-    print("[MESSAGE] : start activity from this moment")
-    print("-t [MINUTES] [MESSAGE] : Start activity from [MINUTES] ago")
-    print("-tt [MINUTES] [MESSAGE] : Start and finish given activity from [MINUTES] ago, then continue the last "
-          "activity.")
-    print("-c tags : list tags")
-    print("-c add : add a tag")
-    print("-c end : Add end to the file")
-    print("-c open [days_ago]: Open today log in default system editor")
-    print("-c cat [days_ago] : Print data file, default : today(0)")
-    print("-c rev [days_age] : Print data file and manage tags, default : today(0)")
-    print("-c sum [START] [END] : Summarize events from [START] days ago until [END] days ago, inclusive.")
-    print("-r : review and add tags to activities. It is equal to '-c rev 0'")
-    print("-h : print this help")
 
 
 def load_and_clean_all(first: int, last: int) -> [[Sample]]:
@@ -520,12 +508,38 @@ def sync_jira_sample(file_date: datetime, sample: Sample, other: Sample):
         sample.jira_skip = True
 
 
+def print_help():
+    print("Tim time tracker, version {}".format(ver))
+    print("---------------------------------\n")
+    commands = [
+        ("-t <MINUTES> <MESSAGE>", "Start activity from <MINUTES> ago"),
+        ("<MESSAGE>", "start activity from this moment"),
+        ("-tt <MINUTES> <MESSAGE>",
+         "Start and finish given activity from <MINUTES> ago, then continue the last activity."),
+        ("-o, --open [DAYS_AGO]", "Open log file for specified day in default system editor. default value is 0."),
+        ("-s, --summary <START> [END]", "Summarize events from <START> days ago until <END> days ago, inclusive."),
+        ("-j, --jira [DAY_AGO]",
+         "Sync issues of the given task with jira, an issue is a message that starts with #, default value is 0"),
+        ("-r, --review [DAYS_AGO]", "review and add tags to activities. Default value is 0"),
+        ("-p, --print [DAYS_AGO]", "Print data file, default value is 0"),
+        ("-c, --command tags", "list tags"),
+        ("-c, --command add <TAG>", "add a tag."),
+        ("-c, --command end", "Add end to the file"),
+        ("-h, --help", "print this help"),
+    ]
+    for command in commands:
+        print("" + command[0])
+        print("\t" + command[1])
+        print()
+
+
 def run():
     if len(args) == 1:
         cat(now)
         print("")
     else:
-        if args[1] == '-j' or args[1] == '--jira':
+        first = args[1]
+        if first == '-j' or first == '--jira':
             start = 0
             if len(args) == 2:
                 start = 0
@@ -533,9 +547,55 @@ def run():
                 start = int(args[2])
             else:
                 print('Expected one numerical argument')
-
             sync_jira(start)
-        elif args[1] == "-c":
+
+        elif first == "--summary" or first == '-s':
+            if len(args) == 3:
+                start = 0
+                end = int(args[2])
+                summarize(start, end)
+            elif len(args) == 4:
+                start = int(args[2])
+                end = int(args[3])
+                if start > end:
+                    (start, end) = (end, start)
+                summarize(start, end)
+            else:
+                print('Expected at least one numerical argument')
+
+        elif first == '-r' or first == "--review":
+            days = 0
+            if len(args) == 3:
+                days = int(args[2])
+            elif len(args) > 3:
+                print('Expected one numerical argument')
+                return
+            review(days_ago(days))
+
+        elif first == '-o' or first == '--open':
+            days = 0
+            if len(args) == 3:
+                days = int(args[2])
+            elif len(args) > 3:
+                print('Expected one numerical argument')
+                return
+            date = days_ago(days)
+            path = date_to_path(date)
+            open_editor(path)
+
+        elif first == '-p' or first == '--print':
+            days = 0
+            if len(args) == 3:
+                days = int(args[2])
+            elif len(args) > 3:
+                print('Expected one numerical argument')
+                return
+            cat(days_ago(days))
+
+        elif first == "-h" or first == "--help":
+            print_help()
+
+        elif first == "-c" or first == '--command':
             command = args[2]
 
             if command == 'tags':
@@ -550,54 +610,7 @@ def run():
                     print("Expected One argument after add")
             elif command == "end":
                 insert_command("END", today_path, str(now.hour) + ':' + str(now.minute))
-            elif command == "open":
-                days = 0
-                if len(args) == 4:
-                    days = int(args[3])
-                elif len(args) > 4:
-                    print('Expected one numerical argument')
-                    return
-                date = days_ago(days)
-                path = date_to_path(date)
-                open_editor(path)
-            elif command == 'cat':
-                days = 0
-                if len(args) == 4:
-                    days = int(args[3])
-                elif len(args) > 4:
-                    print('Expected one numerical argument')
-                    return
-                cat(days_ago(days))
 
-            elif command == 'rev':
-                days = 0
-                if len(args) == 4:
-                    days = int(args[3])
-                elif len(args) > 4:
-                    print('Expected one numerical argument')
-                    return
-                review(days_ago(days))
-
-            elif command == "sum":
-                if len(args) == 4:
-                    start = 0
-                    end = int(args[3])
-                    summarize(start, end)
-                elif len(args) == 5:
-                    start = int(args[3])
-                    end = int(args[4])
-                    summarize(start, end)
-                else:
-                    print('Expected one numerical argument')
-
-        elif args[1] == "-r":
-            days = 0
-            if len(args) == 3:
-                days = int(args[2])
-            date = days_ago(days)
-            review(date)
-        elif args[1] == "-h":
-            print_help()
         elif args[1] == "-t":
             d = int(args[2])
             message = " ".join(args[3:])
@@ -617,7 +630,10 @@ def run():
 
         else:
             message = " ".join(args[1:])
-            insert(message, today_path, 0)
+            if message.startswith('-'):
+                print("ERROR: Message cannot start with '-'.")
+            else:
+                insert(message, today_path, 0)
 
 
 run()
