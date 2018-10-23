@@ -386,26 +386,48 @@ def summarize(start: int, end: int):
     def per(total: int, n: int) -> float:
         return int(n * 1000 / total) / 10
 
-    print(tag_length)
-    print(issue_sum)
-
     total_hours = 0
     for tag in tag_length:
         total_hours += tag_length[tag]
+
+    print("\n\n")
+
     print("\n-------------------------\n")
     print("Daily AVG: {}".format(avg(day_length) / 60))
+
     print()
-    print("Distribution:")
-    for tag in tag_length:
-        print('{}: {}%  AVG:{}'.format(tag, per(total_hours, tag_length[tag]), tag_length[tag] / tag_count[tag]))
-    print()
-    print("Issues:")
-    for issue in issue_sum:
-        print("{} :  {}".format(issue, issue_sum[issue]))
-    print()
-    print("Daily cuts:")
-    for tag in tag_count:
-        print('{}:  {}'.format(tag, tag_count[tag] / len(data)))
+    print("Tag Distribution:{}Issue Distribution:\n".format(' ' * 57))
+
+    magic = 54
+    gap = 20 * ' '
+    header = " {:^15s} | {:^4s} | {:^9s} | {:^7s} | {:^5s}{} {:^15s} | {:^4s} | {:^6s}".format("Tag", "%", "Length(m)", "AVG(m)", "Count", gap, 'Issue' , '%', 'Length') + gap
+    liner = ('=' * magic) + gap + ('=' * 32)
+    arr = []
+
+    for kv in sorted(tag_length.items(), key=lambda kv: kv[1], reverse=True):
+        tag = kv[0]
+        le = kv[1]
+        percent = per(total_hours, le)
+        c = tag_count[tag]
+        av = le / c
+        arr.append(" {:^15s} | {:4.1f} | {:^9d} | {:^7.1f} | {:^5d}".format(tag, percent, le, av, c))
+
+    arr2 = []
+    for kv in sorted(issue_sum.items(), key=lambda kv: kv[1], reverse=True):
+        issue = kv[0]
+        le = kv[1]
+        percent = per(total_hours, le)
+        arr2.append(" {:^15s} | {:4.1f} | {:^6d}".format(issue, percent, le))
+
+    print(header)
+    print(liner)
+    for i in range(0, max(len(arr), len(arr2))):
+        line = arr[i] if len(arr) > i else ' ' * magic
+        line += gap
+        line += arr2[i] if len(arr2) > i else ' ' * magic
+        print(line)
+
+    print('\n\n')
 
 
 def jira_base_url(hostname) -> str:
