@@ -345,10 +345,11 @@ def summarize(start: int, end: int):
     tag_length = {}
     tag_count = {}
     issue_sum = {}
-
+    work_days = 0
     for day in data:
         prev = None
-
+        if day:
+            work_days += 1
         buffer = 0
 
         le = diff(day[0], day[-1])
@@ -390,8 +391,14 @@ def summarize(start: int, end: int):
     for tag in tag_length:
         total_hours += tag_length[tag]
 
-    print("\n\n")
+    day_format = '%Y %b %d  %A'
+    last_day = days_ago(start).strftime(day_format)
+    first_day = days_ago(end).strftime(day_format)
 
+    print("\n\n")
+    print('First day: {}'.format(first_day))
+    print('Last day : {}'.format(last_day))
+    print('\nWork days : {}'.format(work_days))
     print("\n-------------------------\n")
     print("Daily AVG: {}".format(avg(day_length) / 60))
 
@@ -400,7 +407,10 @@ def summarize(start: int, end: int):
 
     magic = 54
     gap = 20 * ' '
-    header = " {:^15s} | {:^4s} | {:^9s} | {:^7s} | {:^5s}{} {:^15s} | {:^4s} | {:^6s}".format("Tag", "%", "Length(m)", "AVG(m)", "Count", gap, 'Issue' , '%', 'Length') + gap
+    header = " {:^15s} | {:^4s} | {:^9s} | {:^7s} | {:^5s}{} {:^15s} | {:^4s} | {:^6s}".format("Tag", "%", "Length(m)",
+                                                                                               "AVG(m)", "Count", gap,
+                                                                                               'Issue', '%',
+                                                                                               'Length') + gap
     liner = ('=' * magic) + gap + ('=' * 32)
     arr = []
 
@@ -525,7 +535,7 @@ def sync_jira_sample(file_date: datetime, sample: Sample, other: Sample):
         if result.status_code == 201:
             sample.jira_sync = True
         else:
-            print('WARNING: Could not sync ' + key)
+            print('WARNING: Could not sync {}, reason: {}  {}'.format(key, result.status_code, result.content))
     else:
         sample.jira_skip = True
 
