@@ -87,8 +87,7 @@ this sample reviews activities which was recorded two days ago.
 
 
 Basic usage is demonstrated in this video :
-
-![video_guide](https://user-images.githubusercontent.com/4332421/47562704-3e313200-d92c-11e8-9bce-b48da28f7075.gif)
+![Video guide](https://user-images.githubusercontent.com/4332421/47564942-a46d8300-d933-11e8-8441-33d0833e144a.gif)
 
 ### Jobs and issues
 You summarize and analyze your data using tags not messages. Jobs are just meaningless messages, without tags you can't
