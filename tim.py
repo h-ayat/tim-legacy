@@ -554,6 +554,7 @@ def print_help():
          "Sync issues of the given task with jira, an issue is a message that starts with #, default value is 0"),
         ("-r, --review [DAYS_AGO]", "review and add tags to activities. Default value is 0"),
         ("-p, --print [DAYS_AGO]", "Print data file, default value is 0"),
+        ("-e, --end", "Ends current day."),
         ("-c, --command tags", "list tags"),
         ("-c, --command add <TAG>", "add a tag."),
         ("-c, --command end", "Add end to the file"),
@@ -627,6 +628,9 @@ def run():
         elif first == "-h" or first == "--help":
             print_help()
 
+        elif first == "-e" or first == "--end":
+            insert_command("END", today_path, str(now.hour) + ':' + str(now.minute))
+
         elif first == "-c" or first == '--command':
             command = args[2]
 
@@ -640,8 +644,6 @@ def run():
                     print(", ".join(arr))
                 else:
                     print("Expected One argument after add")
-            elif command == "end":
-                insert_command("END", today_path, str(now.hour) + ':' + str(now.minute))
 
         elif args[1] == "-t":
             d = int(args[2])
